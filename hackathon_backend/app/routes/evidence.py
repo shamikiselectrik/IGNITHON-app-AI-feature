@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 from datetime import datetime, timezone
@@ -15,6 +16,7 @@ from ..models import (
     AnalyzeTextRequest,
     Evidence,
     TextEvidenceRequest,
+    TransactionEvidenceRequest,
     UrlEvidenceRequest,
 )
 from ..storage import save_evidence_metadata, save_file
@@ -237,6 +239,42 @@ async def create_url_evidence(payload: UrlEvidenceRequest):
         type="url",
         source="url",
         content=url,
+        sha256=sha256,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    save_evidence_metadata(evidence)
+
+    return {
+        "success": True,
+        "evidence": evidence,
+    }
+
+
+@router.post("/transaction")
+async def create_transaction_evidence(
+    payload: TransactionEvidenceRequest,
+):
+    """Create transaction evidence without running extraction."""
+
+    transaction_data = payload.model_dump()
+
+    canonical_json = json.dumps(
+        transaction_data,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+
+    evidence_id = f"ev_{uuid4().hex}"
+    sha256 = calculate_sha256(canonical_json)
+
+    evidence = Evidence(
+        id=evidence_id,
+        type="transaction",
+        source="transaction",
+        size=len(canonical_json.encode("utf-8")),
+        content=canonical_json,
         sha256=sha256,
         created_at=datetime.now(timezone.utc),
     )
